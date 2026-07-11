@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AniList API Wrapper — Documentation</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-dim: #1f6feb;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --radius: 8px;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.6;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  nav {
+    width: 280px;
+    min-width: 280px;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  nav .logo {
+    padding: 0 24px 20px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  nav a {
+    display: block;
+    padding: 6px 24px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    transition: .15s;
+    border-left: 2px solid transparent;
+  }
+  nav a:hover, nav a.active {
+    color: var(--text);
+    border-left-color: var(--accent);
+    background: rgba(88,166,255,.06);
+  }
+  nav .section-title {
+    padding: 16px 24px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+  }
+
+  /* Main */
+  main {
+    flex: 1;
+    max-width: 900px;
+    padding: 48px 64px 96px;
+    overflow-y: auto;
+  }
+  h1 { font-size: 36px; font-weight: 700; margin-bottom: 8px; letter-spacing: -.02em; }
+  h2 { font-size: 24px; font-weight: 600; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 18px; font-weight: 600; margin: 32px 0 12px; }
+  p { margin-bottom: 12px; color: var(--text); }
+  .muted { color: var(--muted); }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .badge.green { color: var(--green); border-color: var(--green); }
+  .badge.red { color: var(--red); border-color: var(--red); }
+  .badge.yellow { color: var(--yellow); border-color: var(--yellow); }
+  .badge.accent { color: var(--accent); border-color: var(--accent); }
+
+  /* Code */
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    overflow-x: auto;
+    margin: 12px 0 20px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.55;
+    position: relative;
+  }
+  code { font-family: var(--mono); font-size: 13px; }
+  .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    background: var(--border);
+    color: var(--muted);
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: var(--font);
+  }
+  .copy-btn:hover { color: var(--text); background: var(--accent-dim); }
+  .copy-btn.copied { background: var(--green); color: #000; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--accent); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:hover td { background: rgba(88,166,255,.03); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; margin-bottom: -1px; }
+  .tab {
+    padding: 10px 20px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    font-family: var(--font);
+    border-radius: var(--radius) var(--radius) 0 0;
+    transition: .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--accent);
+    background: var(--surface);
+    border-color: var(--border);
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Cards */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .card h4 { font-size: 15px; margin-bottom: 6px; }
+  .card .sig { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-bottom: 8px; }
+  .card p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* Method list */
+  .method-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .method-header {
+    padding: 14px 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    user-select: none;
+  }
+  .method-header:hover { background: rgba(88,166,255,.03); }
+  .method-header .name { font-family: var(--mono); font-weight: 600; color: var(--accent); }
+  .method-header .return { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .method-header .arrow { transition: .2s; color: var(--muted); }
+  .method-item.open .method-header .arrow { transform: rotate(180deg); }
+  .method-body {
+    display: none;
+    padding: 0 18px 18px;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .method-item.open .method-body { display: block; }
+
+  /* Status indicators */
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .status-dot.ok { background: var(--green); }
+  .status-dot.warn { background: var(--yellow); }
+  .status-dot.err { background: var(--red); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: .25s;
+    pointer-events: none;
+    z-index: 999;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    nav { width: 100%; min-width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; padding: 12px; }
+    nav .logo { border-bottom: none; margin: 0; padding: 0 12px; }
+    main { padding: 24px; }
+    .card-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">AniList Wrapper</div>
+  <div class="section-title">Overview</div>
+  <a href="#intro" class="active">Introduction</a>
+  <a href="#quickstart">Quick Start</a>
+  <a href="#install">Installation</a>
+  <div class="section-title">API Reference</div>
+  <a href="#methods">Methods</a>
+  <a href="#enums">Enums</a>
+  <a href="#models">Models</a>
+  <a href="#auth">Authentication</a>
+  <a href="#cli">CLI</a>
+  <div class="section-title">Info</div>
+  <a href="#rate-limiting">Rate Limiting</a>
+  <a href="#errors">Exceptions</a>
+  <a href="#limitations">Limitations</a>
+</nav>
+
+<main>
+  <h1>AniList API Wrapper</h1>
+  <p>Complete, type-safe Python client for the AniList GraphQL API.</p>
+  <p>
+    <span class="badge accent">v1.0.0</span>
+    <span class="badge green">Python 3.10+</span>
+    <span class="badge green">No API Key</span>
+    <span class="badge accent">MIT</span>
+  </p>
+
+  <!-- INTRODUCTION -->
+  <h2 id="intro">Introduction</h2>
+  <p>The AniList Wrapper provides a clean, type-safe interface to the AniList GraphQL API. It handles rate limiting, pagination, OAuth2, and serialization — no API key needed for public data.</p>
+
+  <div class="card-grid">
+    <div class="card"><h4>Zero Config</h4><p>No API key. Import and go for all public anime/manga data.</p></div>
+    <div class="card"><h4>Type-Safe</h4><p>Pydantic v2 models for all 55+ GraphQL types with full alias support.</p></div>
+    <div class="card"><h4>Rate Limited</h4><p>Token bucket at ~80 req/min stays safely under AniList's ~90 cap.</p></div>
+    <div class="card"><h4>Rich Data</h4><p>Media, characters, staff, studios, airing schedules, trends, user lists.</p></div>
+  </div>
+
+  <!-- QUICK START -->
+  <h2 id="quickstart">Quick Start</h2>
+  <div class="tabs">
+    <button class="tab active" onclick="showTab(this,'qs-sync')">Synchronous</button>
+    <button class="tab" onclick="showTab(this,'qs-ctx')">Context Manager</button>
+  </div>
+  <div class="tab-content active" id="qs-sync">
+    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>from anilist import AniListClient, MediaSeason
+
+client = AniListClient()
+
+# Get by ID
+anime = client.get_media(1)
+print(anime.title.romaji)      # Cowboy Bebop
+print(anime.average_score)     # 86
+
+# Search
+results = client.search_media("Attack on Titan")
+for m in results.nodes:
+    print(f"{m.title.english}: {m.average_score}%")
+
+# Seasonal
+summer = client.get_seasonal(2026, MediaSeason.SUMMER)
+for m in summer.nodes:
+    print(m.title.romaji)
+
+# Characters
+spike = client.get_character(1)
+print(spike.name.full)         # Spike Spiegel
+
+client.close()</pre>
+  </div>
+  <div class="tab-content" id="qs-ctx">
+    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>from anilist import AniListClient
+
+with AniListClient() as client:
+    anime = client.get_media(1)
+    trending = client.get_trending(per_page=10)
+    characters = client.search_characters("Mikasa")</pre>
+  </div>
+
+  <!-- INSTALLATION -->
+  <h2 id="install">Installation</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>pip install anilist-wrapper</pre>
+  <p class="muted">Or from source: <code>git clone ... && pip install -e .</code></p>
+  <p>Dependencies: <code>httpx >= 0.25.0</code>, <code>pydantic >= 2.0.0</code></p>
+
+  <!-- METHODS -->
+  <h2 id="methods">API Methods <span class="badge green">18 methods</span></h2>
+
+  <div class="method-item open">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_media(id, *, media_type="ANIME")</span>
+      <span class="return">→ Media | None</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body">
+      <p>Get a single media entry by AniList ID.</p>
+      <pre>anime = client.get_media(1)
+manga = client.get_media(30002, media_type="MANGA")</pre>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">search_media(query, *, ...)</span>
+      <span class="return">→ MediaConnection</span>
+      <span class="status-dot warn"></span>
+    </div>
+    <div class="method-body">
+      <p>Search by title. Supports type, format, status, genre filters and all sort orders.</p>
+      <pre>results = client.search_media("Cowboy Bebop", per_page=5, sort=MediaSort.POPULARITY_DESC)
+for m in results.nodes:
+    print(m.title.english, m.average_score)
+print(results.page_info.total)  # total results</pre>
+      <p class="muted"><span class="badge yellow">Known Issue</span> AniList search endpoint occasionally returns HTTP 500 during high load.</p>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_seasonal(year, season, *, ...)</span>
+      <span class="return">→ MediaConnection</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body">
+      <p>Get media for a specific season.</p>
+      <pre>from anilist import MediaSeason
+summer = client.get_seasonal(2026, MediaSeason.SUMMER, per_page=20, sort=MediaSort.POPULARITY_DESC)</pre>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_trending(*, media_type, page, per_page)</span>
+      <span class="return">→ MediaConnection</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get currently trending anime or manga.</p><pre>trending = client.get_trending(per_page=10)
+trending_manga = client.get_trending(media_type="MANGA", per_page=5)</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_character(character_id)</span>
+      <span class="return">→ Character | None</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get a character by ID with name, image, description, media appearances.</p><pre>spike = client.get_character(1)</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">search_characters(query, *, page, per_page)</span>
+      <span class="return">→ CharacterConnection</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Search characters by name with pagination.</p><pre>lelouch = client.search_characters("Lelouch", per_page=5)</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_staff(staff_id)</span>
+      <span class="return">→ Staff | None</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get a staff member by ID.</p><pre>director = client.get_staff(97091)</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">search_studios(query)</span>
+      <span class="return">→ Studio | None</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Search for a studio by name.</p><pre>wit = client.search_studios("Wit Studio")</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_media_characters(media_id, *, ...)</span>
+      <span class="return">→ CharacterConnection</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get characters for a media entry. Filter by role: "MAIN", "SUPPORTING", "BACKGROUND".</p><pre>chars = client.get_media_characters(1, per_page=10, role="MAIN")</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_media_staff(media_id, *, page, per_page)</span>
+      <span class="return">→ StaffConnection</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get staff (directors, animators, voice actors) for a media entry.</p><pre>staff = client.get_media_staff(1, per_page=5)</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_media_studios(media_id)</span>
+      <span class="return">→ StudioConnection</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get production studios for a media entry.</p><pre>studios = client.get_media_studios(1)
+for s in studios.nodes: print(s.name)</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_media_recommendations(media_id, *, page, per_page)</span>
+      <span class="return">→ dict</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get recommendations based on a media entry.</p><pre>recs = client.get_media_recommendations(16498, per_page=5)
+for r in recs.get("nodes", []):
+    mr = r["mediaRecommendation"]
+    print(mr["title"]["romaji"], mr["averageScore"])</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_media_relations(media_id)</span>
+      <span class="return">→ dict</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get sequels, prequels, adaptations, and other related media.</p></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_media_trends(media_id, *, page, per_page)</span>
+      <span class="return">→ list[MediaTrend]</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get daily trend stats (trending, popularity, score over time).</p><pre>trends = client.get_media_trends(1, per_page=30)</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_media_rankings(media_id)</span>
+      <span class="return">→ list[dict]</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get all rankings (#1 in Action, #3 in 1999, etc.) for a media.</p></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_airing_schedule(*, ...)</span>
+      <span class="return">→ dict</span>
+      <span class="status-dot warn"></span>
+    </div>
+    <div class="method-body">
+      <p>Get upcoming episodes with Unix timestamp filtering.</p>
+      <pre>schedule = client.get_airing_schedule(per_page=10, not_yet_aired=True)</pre>
+      <p class="muted"><span class="badge yellow">Known Issue</span> Returns HTTP 400 in some configurations. Fix pending.</p>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_user(id=None, name=None)</span>
+      <span class="return">→ User | None</span>
+      <span class="status-dot accent"></span>
+    </div>
+    <div class="method-body">
+      <p>Get a user profile. Without args returns the authenticated viewer (requires OAuth).</p>
+      <pre>user = client.get_user(name="SomeUser")
+me = client.get_user()  # needs auth</pre>
+      <p class="muted"><span class="badge accent">Auth Required</span> for viewer endpoint.</p>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_user_list(user_id, *, ...)</span>
+      <span class="return">→ MediaListCollection</span>
+      <span class="status-dot accent"></span>
+    </div>
+    <div class="method-body">
+      <p>Get a user's anime or manga list. Requires OAuth for private lists.</p>
+      <pre>alist = client.get_user_list(12345, media_type="ANIME", status=MediaListStatus.COMPLETED)</pre>
+    </div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_genres()</span>
+      <span class="return">→ list[str]</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get all possible media genres.</p><pre>genres = client.get_genres()
+# ['Action', 'Adventure', 'Comedy', 'Drama', ...]</pre></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_media_tags(*, status=1)</span>
+      <span class="return">→ list[dict]</span>
+      <span class="status-dot ok"></span>
+    </div>
+    <div class="method-body"><p>Get all media tags. status: 0=rejected, 1=pending, 2=accepted.</p></div>
+  </div>
+
+  <div class="method-item">
+    <div class="method-header" onclick="this.parentElement.classList.toggle('open')">
+      <span class="arrow">▼</span>
+      <span class="name">get_site_statistics()</span>
+      <span class="return">→ dict</span>
+      <span class="status-dot warn"></span>
+    </div>
+    <div class="method-body">
+      <p>Get AniList site-wide anime/manga/user counts.</p>
+      <p class="muted"><span class="badge yellow">Known Issue</span> Returns HTTP 400. Fix pending.</p>
+    </div>
+  </div>
+
+  <!-- ENUMS -->
+  <h2 id="enums">Enums</h2>
+  <table>
+    <tr><th>Enum</th><th>Values</th></tr>
+    <tr><td><code>MediaFormat</code></td><td>TV, TV_SHORT, MOVIE, SPECIAL, OVA, ONA, MUSIC, MANGA, NOVEL, ONE_SHOT</td></tr>
+    <tr><td><code>MediaStatus</code></td><td>FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS</td></tr>
+    <tr><td><code>MediaSeason</code></td><td>WINTER, SPRING, SUMMER, FALL</td></tr>
+    <tr><td><code>MediaSort</code></td><td>ID, TITLE_ROMAJI, SCORE, POPULARITY, TRENDING, EPISODES, SEARCH_MATCH, FAVOURITES... (all with _DESC variants)</td></tr>
+    <tr><td><code>MediaSource</code></td><td>ORIGINAL, MANGA, LIGHT_NOVEL, VISUAL_NOVEL, VIDEO_GAME, ANIME, WEB_NOVEL, LIVE_ACTION...</td></tr>
+    <tr><td><code>MediaListStatus</code></td><td>CURRENT, PLANNING, COMPLETED, DROPPED, PAUSED, REPEATING</td></tr>
+    <tr><td><code>CharacterSort</code></td><td>ID, ROLE, SEARCH_MATCH, FAVOURITES, RELEVANCE (+ _DESC)</td></tr>
+    <tr><td><code>StaffSort</code></td><td>ID, ROLE, LANGUAGE, SEARCH_MATCH, FAVOURITES, RELEVANCE (+ _DESC)</td></tr>
+    <tr><td><code>UserTitleLanguage</code></td><td>ROMAJI, ENGLISH, NATIVE, ROMAJI_STYLISED, ENGLISH_STYLISED, NATIVE_STYLISED</td></tr>
+    <tr><td><code>ScoreFormat</code></td><td>POINT_100, POINT_10_DECIMAL, POINT_10, POINT_5, POINT_3</td></tr>
+  </table>
+
+  <!-- MODELS -->
+  <h2 id="models">Models</h2>
+  <p>All models are Pydantic v2 classes with <code>populate_by_name=True</code> — GraphQL camelCase fields auto-map to Python snake_case.</p>
+
+  <table>
+    <tr><th>Model</th><th>Key Fields</th></tr>
+    <tr><td><code>Media</code></td><td>id, title, format, status, episodes, chapters, average_score, popularity, trending, genres, cover_image, next_airing_episode, rankings...</td></tr>
+    <tr><td><code>MediaConnection</code></td><td>page_info: PageInfo, nodes: list[Media]</td></tr>
+    <tr><td><code>PageInfo</code></td><td>total, per_page, current_page, last_page, has_next_page</td></tr>
+    <tr><td><code>Character</code></td><td>id, name: CharacterName, image, description, gender, age, favourites, media</td></tr>
+    <tr><td><code>Staff</code></td><td>id, name: StaffName, image, primary_occupations, years_active, favourites</td></tr>
+    <tr><td><code>Studio</code></td><td>id, name, is_animation_studio, favourites, media</td></tr>
+    <tr><td><code>User</code></td><td>id, name, avatar, statistics, options, media_list_options, donator_tier</td></tr>
+    <tr><td><code>MediaList</code></td><td>id, status, score, progress, notes, media</td></tr>
+    <tr><td><code>MediaTrend</code></td><td>media_id, date, trending, average_score, popularity, in_progress, episode</td></tr>
+    <tr><td><code>AiringSchedule</code></td><td>id, airing_at (Unix), time_until_airing, episode, media_id</td></tr>
+    <tr><td><code>FuzzyDate</code></td><td>year, month, day (all Optional[int])</td></tr>
+  </table>
+
+  <!-- AUTH -->
+  <h2 id="auth">Authentication</h2>
+  <p>Public data requires zero auth. OAuth2 is only needed for user-specific operations (reading private lists, updating progress).</p>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab(this,'auth-oauth')">OAuth2 Flow</button>
+    <button class="tab" onclick="showTab(this,'auth-persist')">Persist Token</button>
+  </div>
+  <div class="tab-content active" id="auth-oauth">
+    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>from anilist.auth import AniListAuth
+from anilist import AniListClient
+
+auth = AniListAuth(
+    client_id="YOUR_CLIENT_ID",
+    client_secret="YOUR_CLIENT_SECRET",
+)
+
+# Step 1: User visits this URL
+print(auth.get_authorization_url())
+
+# Step 2: Exchange the code from the callback
+token = auth.exchange_code("code_from_callback_url")
+
+# Step 3: Use with client
+client = AniListClient(auth=auth)
+me = client.get_user()  # Returns the authenticated viewer
+print(me.name)</pre>
+  </div>
+  <div class="tab-content" id="auth-persist">
+    <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Save token to disk
+auth.save("token.json")
+
+# Later: restore
+auth = AniListAuth.load("YOUR_CLIENT_ID", "YOUR_CLIENT_SECRET", "token.json")
+client = AniListClient(auth=auth)
+
+# Or load manually
+auth.load_token(
+    access_token="...",
+    refresh_token="...",
+    expires_in=31536000,  # ~1 year
+)</pre>
+  </div>
+
+  <!-- CLI -->
+  <h2 id="cli">CLI Usage</h2>
+  <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button># Search
+anilist search "Attack on Titan"
+anilist search "isekai" --format TV --sort POPULARITY_DESC
+
+# Get by ID
+anilist get 1
+anilist get 1 --json | jq .title.romaji
+
+# Seasonal
+anilist seasonal --year 2026 --season SUMMER
+anilist seasonal --year 2026 --season WINTER --per-page 5
+
+# Trending
+anilist trending
+anilist trending --type MANGA
+
+# Characters & Studios
+anilist character "Spike Spiegel"
+anilist studio "Wit Studio"
+
+# Genres & Schedule
+anilist genres
+anilist schedule
+
+# User (requires OAuth)
+anilist user --name "someuser" --token YOUR_OAUTH_TOKEN</pre>
+
+  <!-- RATE LIMITING -->
+  <h2 id="rate-limiting">Rate Limiting</h2>
+  <p>AniList allows ~90 requests per minute. The wrapper uses a <strong>token bucket</strong> algorithm defaulting to 80 req/min with burst support (up to 10 instantaneous).</p>
+  <pre># Stricter limit
+client = AniListClient(rate_limit_rpm=60)
+
+# More burst tolerance
+from anilist.rate_limiter import RateLimiter
+limiter = RateLimiter(rate=80, burst=20)</pre>
+
+  <!-- EXCEPTIONS -->
+  <h2 id="errors">Exceptions</h2>
+  <table>
+    <tr><th>Exception</th><th>When</th></tr>
+    <tr><td><code>AniListError</code></td><td>Base class for all errors</td></tr>
+    <tr><td><code>GraphQLError</code></td><td>API returns errors array in response</td></tr>
+    <tr><td><code>RateLimitError</code></td><td>HTTP 429 — exceeded 90 req/min</td></tr>
+    <tr><td><code>AuthenticationError</code></td><td>OAuth failure</td></tr>
+    <tr><td><code>NotFoundError</code></td><td>Resource not found</td></tr>
+    <tr><td><code>ValidationError</code></td><td>Input validation failure</td></tr>
+  </table>
+
+  <!-- LIMITATIONS -->
+  <h2 id="limitations">Limitations & Known Issues</h2>
+
+  <table>
+    <tr><th>Issue</th><th>Status</th><th>Details</th></tr>
+    <tr>
+      <td><code>search_media()</code> 500 errors</td>
+      <td><span class="badge yellow">AniList Server</span></td>
+      <td>AniList search endpoint occasionally returns HTTP 500 under load. This is upstream — retry after a few seconds.</td>
+    </tr>
+    <tr>
+      <td><code>get_airing_schedule()</code></td>
+      <td><span class="badge red">Fix Pending</span></td>
+      <td>Returns 400 in some configurations. Query structure needs adjustment.</td>
+    </tr>
+    <tr>
+      <td><code>get_site_statistics()</code></td>
+      <td><span class="badge red">Fix Pending</span></td>
+      <td>Returns 400. GraphQL query needs schema correction.</td>
+    </tr>
+    <tr>
+      <td>No async support</td>
+      <td><span class="badge accent">Planned</span></td>
+      <td>Currently synchronous only (httpx). Async client planned for v1.1.</td>
+    </tr>
+    <tr>
+      <td>Mutations not implemented</td>
+      <td><span class="badge accent">Planned</span></td>
+      <td>Read-only operations only. SaveMediaListEntry, ToggleFavourite, etc. not yet wrapped.</td>
+    </tr>
+    <tr>
+      <td>Cross-module model refs</td>
+      <td><span class="badge green">Resolved</span></td>
+      <td>Connection-type fields (characters, staff, studios, recommendations) on Media use <code>object</code> type. Fully typed connections available via dedicated getter methods.</td>
+    </tr>
+    <tr>
+      <td>Rate limit</td>
+      <td><span class="badge green">90 req/min</span></td>
+      <td>Hard cap imposed by AniList. The wrapper stays at ~80 with burst tolerance.</td>
+    </tr>
+    <tr>
+      <td>No GraphQL query customization</td>
+      <td><span class="badge accent">Planned</span></td>
+      <td>Methods use fixed queries. Custom query builder planned for advanced use cases.</td>
+    </tr>
+  </table>
+
+  <h3>Architecture Constraints</h3>
+  <ul style="margin-left: 20px; color: var(--muted); font-size: 14px; line-height: 2;">
+    <li>Single GraphQL endpoint: <code>POST https://graphql.anilist.co</code></li>
+    <li>No webhook/callback support from AniList</li>
+    <li>No bulk mutation operations</li>
+    <li>Adult content filtering controlled client-side via <code>is_adult</code> field</li>
+    <li>Fuzzy dates: month/day may be null for incomplete release data</li>
+  </ul>
+
+  <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px;">
+    Version 1.0.0 · MIT License · Built for Python 3.10+
+  </p>
+
+</main>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+function showTab(btn, id) {
+  btn.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  btn.parentElement.parentElement.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function copyCode(btn) {
+  const pre = btn.parentElement;
+  const text = pre.textContent.replace(/^Copy/, '').trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    showToast();
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// Active nav link on scroll
+const sections = document.querySelectorAll('h2[id]');
+const navLinks = document.querySelectorAll('nav a');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 100) current = s.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+</script>
+
+</body>
+</html>
