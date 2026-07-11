@@ -19,6 +19,7 @@ from .async_client import AsyncAniListClient
 from .client import AniListClient
 from .exceptions import (
     AniListError,
+    AuthenticationError,
     GraphQLError,
     NotFoundError,
     RateLimitError,
@@ -41,6 +42,7 @@ __all__ = [
     "AniListClient",
     "AsyncAniListClient",
     "AniListError",
+    "AuthenticationError",
     "CharacterSort",
     "GraphQLError",
     "MediaFormat",

@@ -22,6 +22,7 @@ from .models.character import (
     Studio,
     StudioConnection,
 )
+from .auth import AniListAuth
 from .rate_limiter import RateLimiter
 from .types import MediaType, MediaFormat, MediaListStatus, MediaSeason, MediaSort, MediaStatus
 
@@ -44,12 +45,15 @@ class AniListClient:
         self,
         rate_limit_rpm: float = 80,
         timeout: float = 30.0,
+        auth: Optional[AniListAuth] = None,
     ) -> None:
         """
         Args:
             rate_limit_rpm: Max requests per minute (default 80, AniList cap ~90).
             timeout: HTTP request timeout in seconds.
+            auth: Optional AniListAuth instance for authenticated requests.
         """
+        self._auth = auth
         self._rate_limiter = RateLimiter(rate=rate_limit_rpm)
         self._client = httpx.Client(
             base_url=ANILIST_ENDPOINT,
@@ -79,7 +83,11 @@ class AniListClient:
         if variables:
             payload["variables"] = variables
 
-        response = self._client.post(ANILIST_ENDPOINT, json=payload)
+        headers = {}
+        if self._auth and self._auth.access_token:
+            headers["Authorization"] = f"Bearer {self._auth.access_token}"
+
+        response = self._client.post(ANILIST_ENDPOINT, json=payload, headers=headers)
 
         if response.status_code == 429:
             retry_after = int(response.headers.get("Retry-After", 60))

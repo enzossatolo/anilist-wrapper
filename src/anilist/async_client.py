@@ -22,6 +22,7 @@ from .models.character import (
     Studio,
     StudioConnection,
 )
+from .auth import AniListAuth
 from .rate_limiter import RateLimiter
 from .types import MediaType, MediaFormat, MediaSeason, MediaSort, MediaStatus
 
@@ -38,7 +39,9 @@ class AsyncAniListClient:
         self,
         rate_limit_rpm: float = 80,
         timeout: float = 30.0,
+        auth: Optional[AniListAuth] = None,
     ) -> None:
+        self._auth = auth
         self._rate_limiter = RateLimiter(rate=rate_limit_rpm)
         self._client = httpx.AsyncClient(
             base_url=ANILIST_ENDPOINT,
@@ -60,7 +63,12 @@ class AsyncAniListClient:
         payload: dict[str, Any] = {"query": query}
         if variables:
             payload["variables"] = variables
-        response = await self._client.post(ANILIST_ENDPOINT, json=payload)
+
+        headers = {}
+        if self._auth and self._auth.access_token:
+            headers["Authorization"] = f"Bearer {self._auth.access_token}"
+
+        response = await self._client.post(ANILIST_ENDPOINT, json=payload, headers=headers)
         if response.status_code == 429:
             raise RateLimitError(int(response.headers.get("Retry-After", 60)))
         response.raise_for_status()

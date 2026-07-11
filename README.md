@@ -21,7 +21,7 @@ pip install anilist-wrapper
 Or from source:
 
 ```bash
-git clone https://github.com/enzosatolo/anilist-wrapper.git
+git clone https://github.com/enzossatolo/anilist-wrapper.git
 cd anilist-wrapper
 pip install -e .
 ```
