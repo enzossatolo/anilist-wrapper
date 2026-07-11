@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..types import MediaListStatus
 from .base import FuzzyDate
@@ -106,6 +106,12 @@ class User(BaseModel):
     donator_tier: Optional[int] = Field(default=None, alias="donatorTier")
     donator_badge: Optional[str] = Field(default=None, alias="donatorBadge")
     moderator_roles: list[str] = Field(default_factory=list, alias="moderatorRoles")
+
+    @field_validator("moderator_roles", mode="before")
+    @classmethod
+    def _null_to_empty_list(cls, v):
+        return v or []
+
     created_at: Optional[int] = Field(default=None, alias="createdAt")
     updated_at: Optional[int] = Field(default=None, alias="updatedAt")
 

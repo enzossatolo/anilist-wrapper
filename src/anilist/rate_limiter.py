@@ -1,7 +1,8 @@
-"""Token bucket rate limiter for the AniList API (~90 req/min)."""
+"""Token bucket rate limiter for the AniList API (~40 req/min)."""
 
 from __future__ import annotations
 
+import asyncio
 import time
 import threading
 
@@ -47,3 +48,25 @@ class RateLimiter:
         with self._lock:
             self._refill()
             return self._tokens
+
+
+class AsyncRateLimiter(RateLimiter):
+    """Async-aware token bucket rate limiter.
+
+    Same token bucket algorithm, but uses asyncio.sleep() instead of
+    time.sleep() so it doesn't block the event loop.
+    """
+
+    def __init__(self, rate: float = 80.0, burst: int = 10) -> None:
+        super().__init__(rate=rate, burst=burst)
+        self._async_lock = asyncio.Lock()
+
+    async def acquire(self) -> None:  # type: ignore[override]
+        """Async version — uses asyncio.sleep() to yield control."""
+        async with self._async_lock:
+            while self._tokens < 1.0:
+                self._refill()
+                if self._tokens < 1.0:
+                    sleep_time = (1.0 - self._tokens) / self._rate
+                    await asyncio.sleep(sleep_time)
+            self._tokens -= 1.0

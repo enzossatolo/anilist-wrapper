@@ -22,8 +22,9 @@ from .models.character import (
     Studio,
     StudioConnection,
 )
+from .models.user import User
 from .auth import AniListAuth
-from .rate_limiter import RateLimiter
+from .rate_limiter import AsyncRateLimiter
 from .types import MediaType, MediaFormat, MediaSeason, MediaSort, MediaStatus
 
 
@@ -37,12 +38,12 @@ class AsyncAniListClient:
 
     def __init__(
         self,
-        rate_limit_rpm: float = 80,
+        rate_limit_rpm: int = 40,
         timeout: float = 30.0,
         auth: Optional[AniListAuth] = None,
     ) -> None:
         self._auth = auth
-        self._rate_limiter = RateLimiter(rate=rate_limit_rpm)
+        self._rate_limiter = AsyncRateLimiter(rate=rate_limit_rpm)
         self._client = httpx.AsyncClient(
             base_url=ANILIST_ENDPOINT,
             timeout=timeout,
@@ -59,7 +60,7 @@ class AsyncAniListClient:
         await self.close()
 
     async def _execute(self, query: str, variables: Optional[dict] = None) -> dict:
-        self._rate_limiter.acquire()
+        await self._rate_limiter.acquire()
         payload: dict[str, Any] = {"query": query}
         if variables:
             payload["variables"] = variables
@@ -71,7 +72,26 @@ class AsyncAniListClient:
         response = await self._client.post(ANILIST_ENDPOINT, json=payload, headers=headers)
         if response.status_code == 429:
             raise RateLimitError(int(response.headers.get("Retry-After", 60)))
-        response.raise_for_status()
+
+        # Treat 404 as "not found" — return empty data so callers handle None gracefully
+        if response.status_code == 404:
+            return {}
+
+        # Treat 500 as transient server error with a hint to retry
+        if response.status_code >= 500:
+            raise GraphQLError(
+                [{"message": f"AniList server error (HTTP {response.status_code}). Try again later."}],
+                query,
+            )
+
+        if response.status_code >= 400:
+            try:
+                body = response.json()
+                errors = body.get("errors", [{"message": response.text}])
+            except Exception:
+                errors = [{"message": f"HTTP {response.status_code}: {response.text[:500]}"}]
+            raise GraphQLError(errors, query)
+
         data: dict = response.json()
         if "errors" in data:
             raise GraphQLError(data["errors"], query)
@@ -143,8 +163,19 @@ class AsyncAniListClient:
     # ── Airing / Trends / Recs ──
 
     async def get_airing_schedule(self, *, page: int = 1, per_page: int = 20, airing_at_greater: Optional[int] = None, airing_at_lesser: Optional[int] = None, not_yet_aired: bool = True) -> dict:
-        q = """query($p:Int,$pp:Int,$ag:Int,$al:Int,$nya:Boolean){Page(page:$p,perPage:$pp){pageInfo{total perPage currentPage lastPage hasNextPage}airingSchedules(airingAt_greater:$ag,airingAt_lesser:$al,notYetAired:$nya,sort:TIME){id airingAt episode mediaId media{id title{romaji english}format status coverImage{medium}}}}}"""
-        return (await self._execute(q, {"p": page, "pp": per_page, "ag": airing_at_greater, "al": airing_at_lesser, "nya": not_yet_aired}))["Page"]
+        schedule_args = ["notYetAired: $nya", "sort: TIME"]
+        var_defs = ["$p: Int", "$pp: Int", "$nya: Boolean"]
+        variables: dict = {"p": page, "pp": per_page, "nya": not_yet_aired}
+        if airing_at_greater is not None:
+            var_defs.append("$ag: Int")
+            schedule_args.insert(0, "airingAt_greater: $ag")
+            variables["ag"] = airing_at_greater
+        if airing_at_lesser is not None:
+            var_defs.append("$al: Int")
+            schedule_args.insert(0, "airingAt_lesser: $al")
+            variables["al"] = airing_at_lesser
+        q = f"query({','.join(var_defs)}){{Page(page:$p,perPage:$pp){{pageInfo{{total perPage currentPage lastPage hasNextPage}}airingSchedules({','.join(schedule_args)}){{id airingAt episode mediaId media{{id title{{romaji english}}format status coverImage{{medium}}}}}}}}}}"
+        return (await self._execute(q, variables))["Page"]
 
     async def get_media_recommendations(self, media_id: int, *, page: int = 1, per_page: int = 10) -> dict:
         q = """query($id:Int,$p:Int,$pp:Int){Media(id:$id){id recommendations(page:$p,perPage:$pp,sort:RATING_DESC){pageInfo{total perPage currentPage lastPage hasNextPage}nodes{id rating userRating mediaRecommendation{id title{romaji english}format averageScore coverImage{medium}}}}}}"""
@@ -166,3 +197,83 @@ class AsyncAniListClient:
 
     async def get_media_tags(self, *, status: int = 1) -> list[dict]:
         return (await self._execute("query($s:Int){MediaTagCollection(status:$s){id name description category isAdult isGeneralSpoiler}}", {"s": status})).get("MediaTagCollection", [])
+
+    # ── Rankings ──────────────────────────────────────────────
+
+    async def get_media_rankings(self, media_id: int) -> list[dict]:
+        """Get rankings for a specific media."""
+        query = """
+        query ($id: Int) {
+            Media(id: $id) {
+                id
+                rankings {
+                    id rank type format year season allTime context
+                }
+            }
+        }
+        """
+        data = await self._execute(query, {"id": media_id})
+        media = data.get("Media", {})
+        return media.get("rankings", [])
+
+    # ── Site Statistics ───────────────────────────────────────
+
+    async def get_site_statistics(self) -> dict:
+        """Get AniList site-wide statistics."""
+        query = """
+        query {
+            SiteStatistics {
+                anime { nodes { count } }
+                manga { nodes { count } }
+            }
+        }
+        """
+        data = await self._execute(query)
+        return data.get("SiteStatistics", {})
+
+    # ── User ──────────────────────────────────────────────────
+
+    async def get_user(
+        self,
+        *,
+        name: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> Optional[User]:
+        """Get an AniList user by name or ID.
+
+        Args:
+            name: Username to search (case-insensitive match).
+            user_id: Exact user ID (takes precedence over name).
+
+        Returns:
+            User object if found, None otherwise.
+        """
+        if not name and not user_id:
+            raise ValueError("Either 'name' or 'user_id' must be provided")
+
+        query = """
+        query ($id: Int, $name: String) {
+            User(id: $id, name: $name) {
+                id name about avatar { large medium }
+                bannerImage
+                isFollowing isFollower isBlocked
+                donatorTier donatorBadge
+                moderatorRoles
+                options { titleLanguage displayAdultContent profileColor }
+                mediaListOptions { scoreFormat rowOrder }
+                favourites { anime { nodes { id title { romaji english } } } }
+                statistics {
+                    anime { count meanScore standardDeviation episodesWatched minutesWatched }
+                    manga { count meanScore standardDeviation chaptersRead volumesRead }
+                }
+                unreadNotificationCount
+                siteUrl
+                createdAt updatedAt
+            }
+        }
+        """
+        data = await self._execute(query, {"id": user_id, "name": name})
+        user_data = data.get("User")
+        if user_data is None:
+            return None
+        return User(**user_data)

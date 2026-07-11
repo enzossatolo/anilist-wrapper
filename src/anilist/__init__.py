@@ -25,6 +25,8 @@ from .exceptions import (
     RateLimitError,
     ValidationError,
 )
+from .models.user import User
+from .rate_limiter import AsyncRateLimiter, RateLimiter
 from .types import (
     CharacterSort,
     MediaFormat,
@@ -41,6 +43,7 @@ from .types import (
 __all__ = [
     "AniListClient",
     "AsyncAniListClient",
+    "AsyncRateLimiter",
     "AniListError",
     "AuthenticationError",
     "CharacterSort",
@@ -52,11 +55,13 @@ __all__ = [
     "MediaSource",
     "MediaStatus",
     "NotFoundError",
+    "RateLimiter",
     "RateLimitError",
     "ScoreFormat",
     "StaffSort",
+    "User",
     "UserTitleLanguage",
     "ValidationError",
 ]
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

@@ -22,6 +22,7 @@ from .models.character import (
     Studio,
     StudioConnection,
 )
+from .models.user import User
 from .auth import AniListAuth
 from .rate_limiter import RateLimiter
 from .types import MediaType, MediaFormat, MediaListStatus, MediaSeason, MediaSort, MediaStatus
@@ -43,13 +44,13 @@ class AniListClient:
 
     def __init__(
         self,
-        rate_limit_rpm: float = 80,
+        rate_limit_rpm: int = 40,
         timeout: float = 30.0,
         auth: Optional[AniListAuth] = None,
     ) -> None:
         """
         Args:
-            rate_limit_rpm: Max requests per minute (default 80, AniList cap ~90).
+            rate_limit_rpm: Max requests per minute (default 40).
             timeout: HTTP request timeout in seconds.
             auth: Optional AniListAuth instance for authenticated requests.
         """
@@ -93,7 +94,25 @@ class AniListClient:
             retry_after = int(response.headers.get("Retry-After", 60))
             raise RateLimitError(retry_after)
 
-        response.raise_for_status()
+        # Treat 404 as "not found" — return empty data so callers handle None gracefully
+        if response.status_code == 404:
+            return {}
+
+        # Treat 500 as transient server error with a hint to retry
+        if response.status_code >= 500:
+            raise GraphQLError(
+                [{"message": f"AniList server error (HTTP {response.status_code}). Try again later."}],
+                query,
+            )
+
+        if response.status_code >= 400:
+            try:
+                body = response.json()
+                errors = body.get("errors", [{"message": response.text}])
+            except Exception:
+                errors = [{"message": f"HTTP {response.status_code}: {response.text[:500]}"}]
+            raise GraphQLError(errors, query)
+
         data: dict = response.json()
 
         if "errors" in data:
@@ -566,7 +585,6 @@ class AniListClient:
         airing_at_greater: Optional[int] = None,
         airing_at_lesser: Optional[int] = None,
         not_yet_aired: bool = True,
-        media_type: MediaType = "ANIME",
     ) -> dict:
         """Get upcoming airing schedules.
 
@@ -575,40 +593,50 @@ class AniListClient:
             airing_at_lesser: Unix timestamp — filter before this time.
             not_yet_aired: Only include episodes that haven't aired yet.
         """
-        query = """
-        query ($page: Int, $perPage: Int, $airingAtGreater: Int,
-               $airingAtLesser: Int, $notYetAired: Boolean, $type: MediaType) {
-            Page(page: $page, perPage: $perPage) {
-                pageInfo { total perPage currentPage lastPage hasNextPage }
-                airingSchedules(
-                    airingAt_greater: $airingAtGreater,
-                    airingAt_lesser: $airingAtLesser,
-                    notYetAired: $notYetAired,
-                    sort: TIME
-                ) {
+        # Build query and variables only with provided params to avoid
+        # sending null values that AniList may reject
+        schedule_args = []
+        var_defs = ["$page: Int", "$perPage: Int", "$notYetAired: Boolean"]
+        variables: dict = {
+            "page": page,
+            "perPage": per_page,
+            "notYetAired": not_yet_aired,
+        }
+
+        if airing_at_greater is not None:
+            var_defs.append("$airingAtGreater: Int")
+            schedule_args.append("airingAt_greater: $airingAtGreater")
+            variables["airingAtGreater"] = airing_at_greater
+
+        if airing_at_lesser is not None:
+            var_defs.append("$airingAtLesser: Int")
+            schedule_args.append("airingAt_lesser: $airingAtLesser")
+            variables["airingAtLesser"] = airing_at_lesser
+
+        schedule_args.append("notYetAired: $notYetAired")
+        schedule_args.append("sort: TIME")
+
+        query = f"""
+        query ({', '.join(var_defs)}) {{
+            Page(page: $page, perPage: $perPage) {{
+                pageInfo {{ total perPage currentPage lastPage hasNextPage }}
+                airingSchedules({', '.join(schedule_args)}) {{
                     id
                     airingAt
                     episode
                     mediaId
-                    media {
+                    media {{
                         id
-                        title { romaji english }
+                        title {{ romaji english }}
                         format
                         status
-                        coverImage { medium }
-                    }
-                }
-            }
-        }
+                        coverImage {{ medium }}
+                    }}
+                }}
+            }}
+        }}
         """
-        data = self._execute(query, {
-            "page": page,
-            "perPage": per_page,
-            "airingAtGreater": airing_at_greater,
-            "airingAtLesser": airing_at_lesser,
-            "notYetAired": not_yet_aired,
-            "type": media_type,
-        })
+        data = self._execute(query, variables)
         return data["Page"]
 
     # ── Genre / Tag Collections ───────────────────────────────
@@ -642,17 +670,82 @@ class AniListClient:
         query = """
         query {
             SiteStatistics {
-                anime(first: 5, sort: COUNT_DESC) {
-                    nodes { count }
-                }
-                manga(first: 5, sort: COUNT_DESC) {
-                    nodes { count }
-                }
-                users(first: 5, sort: COUNT_DESC) {
-                    nodes { count }
-                }
+                anime { nodes { count } }
+                manga { nodes { count } }
             }
         }
         """
         data = self._execute(query)
         return data.get("SiteStatistics", {})
+
+    # ── User ─────────────────────────────────────────────────
+
+    def get_user(
+        self,
+        *,
+        name: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> Optional[User]:
+        """Get an AniList user by name or ID.
+
+        Args:
+            name: Username to search (case-insensitive match).
+            user_id: Exact user ID (takes precedence over name).
+
+        Returns:
+            User object if found, None otherwise.
+        """
+        if not name and not user_id:
+            raise ValueError("Either 'name' or 'user_id' must be provided")
+
+        if user_id is not None:
+            query = """
+            query ($id: Int) {
+                User(id: $id) {
+                    id name about avatar { large medium }
+                    bannerImage
+                    isFollowing isFollower isBlocked
+                    donatorTier donatorBadge
+                    moderatorRoles
+                    options { titleLanguage displayAdultContent profileColor }
+                    mediaListOptions { scoreFormat rowOrder }
+                    favourites { anime { nodes { id title { romaji english } } } }
+                    statistics {
+                        anime { count meanScore standardDeviation episodesWatched minutesWatched }
+                        manga { count meanScore standardDeviation chaptersRead volumesRead }
+                    }
+                    unreadNotificationCount
+                    siteUrl
+                    createdAt updatedAt
+                }
+            }
+            """
+            data = self._execute(query, {"id": user_id})
+        else:
+            query = """
+            query ($name: String) {
+                User(name: $name) {
+                    id name about avatar { large medium }
+                    bannerImage
+                    isFollowing isFollower isBlocked
+                    donatorTier donatorBadge
+                    moderatorRoles
+                    options { titleLanguage displayAdultContent profileColor }
+                    mediaListOptions { scoreFormat rowOrder }
+                    favourites { anime { nodes { id title { romaji english } } } }
+                    statistics {
+                        anime { count meanScore standardDeviation episodesWatched minutesWatched }
+                        manga { count meanScore standardDeviation chaptersRead volumesRead }
+                    }
+                    unreadNotificationCount
+                    siteUrl
+                    createdAt updatedAt
+                }
+            }
+            """
+            data = self._execute(query, {"name": name})
+
+        user_data = data.get("User")
+        if user_data is None:
+            return None
+        return User(**user_data)
