@@ -105,8 +105,26 @@ class AsyncAniListClient:
         return Media(**d["Media"]) if d.get("Media") else None
 
     async def search_media(self, query: str, *, media_type: MediaType = "ANIME", page: int = 1, per_page: int = 10, sort: MediaSort = MediaSort.SEARCH_MATCH, format_in: Optional[list[MediaFormat]] = None, status: Optional[MediaStatus] = None, genre: Optional[str] = None, is_adult: bool = False) -> MediaConnection:
-        q = """query($p:Int,$pp:Int,$s:String,$t:MediaType,$so:[MediaSort],$f:[MediaFormat],$st:MediaStatus,$g:String,$ad:Boolean){Page(page:$p,perPage:$pp){pageInfo{total perPage currentPage lastPage hasNextPage}media(search:$s,type:$t,sort:$so,format_in:$f,status:$st,genre:$g,isAdult:$ad){id idMal title{romaji english native userPreferred}format status episodes chapters volumes averageScore meanScore popularity trending favourites coverImage{extraLarge large medium color}season seasonYear genres startDate{year month day}nextAiringEpisode{airingAt episode}isAdult siteUrl}}}"""
-        d = await self._execute(q, {"p": page, "pp": per_page, "s": query, "t": media_type, "so": [sort.value], "f": [f.value for f in format_in] if format_in else None, "st": status.value if status else None, "g": genre, "ad": is_adult})
+        # Build query dynamically — AniList returns HTTP 500 on null format/status/genre
+        var_defs = ["$p: Int", "$pp: Int", "$s: String", "$t: MediaType",
+                     "$so: [MediaSort]", "$ad: Boolean"]
+        media_args = ["search: $s", "type: $t", "sort: $so", "isAdult: $ad"]
+        vars_: dict = {"p": page, "pp": per_page, "s": query, "t": media_type,
+                       "so": [sort.value], "ad": is_adult}
+        if format_in is not None:
+            var_defs.append("$f: [MediaFormat]")
+            media_args.append("format_in: $f")
+            vars_["f"] = [f.value for f in format_in]
+        if status is not None:
+            var_defs.append("$st: MediaStatus")
+            media_args.append("status: $st")
+            vars_["st"] = status.value
+        if genre is not None:
+            var_defs.append("$g: String")
+            media_args.append("genre: $g")
+            vars_["g"] = genre
+        q = f"query({','.join(var_defs)}){{Page(page:$p,perPage:$pp){{pageInfo{{total perPage currentPage lastPage hasNextPage}}media({','.join(media_args)}){{id idMal title{{romaji english native userPreferred}}format status episodes chapters volumes averageScore meanScore popularity trending favourites coverImage{{extraLarge large medium color}}season seasonYear genres startDate{{year month day}}nextAiringEpisode{{airingAt episode}}isAdult siteUrl}}}}}}"
+        d = await self._execute(q, vars_)
         return MediaConnection(**d["Page"])
 
     async def get_seasonal(self, year: int, season: MediaSeason, *, media_type: MediaType = "ANIME", page: int = 1, per_page: int = 20, sort: MediaSort = MediaSort.POPULARITY_DESC) -> MediaConnection:

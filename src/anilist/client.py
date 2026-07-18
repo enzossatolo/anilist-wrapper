@@ -175,41 +175,51 @@ class AniListClient:
         is_adult: bool = False,
     ) -> MediaConnection:
         """Search for media by title."""
-        query = """
-        query ($page: Int, $perPage: Int, $search: String, $type: MediaType,
-               $sort: [MediaSort], $format: [MediaFormat], $status: MediaStatus,
-               $genre: String, $isAdult: Boolean) {
-            Page(page: $page, perPage: $perPage) {
-                pageInfo { total perPage currentPage lastPage hasNextPage }
-                media(search: $search, type: $type, sort: $sort,
-                      format_in: $format, status: $status, genre: $genre,
-                      isAdult: $isAdult) {
+        # Build query and variables dynamically — AniList returns HTTP 500
+        # when format_in, status, or genre receive null values.
+        var_defs = ["$page: Int", "$perPage: Int", "$search: String",
+                     "$type: MediaType", "$sort: [MediaSort]", "$isAdult: Boolean"]
+        media_args = ["search: $search", "type: $type", "sort: $sort",
+                       "isAdult: $isAdult"]
+        variables: dict = {
+            "page": page, "perPage": per_page, "search": search,
+            "type": media_type, "sort": [sort.value], "isAdult": is_adult,
+        }
+
+        if format_in is not None:
+            var_defs.append("$format: [MediaFormat]")
+            media_args.append("format_in: $format")
+            variables["format"] = [f.value for f in format_in]
+        if status is not None:
+            var_defs.append("$status: MediaStatus")
+            media_args.append("status: $status")
+            variables["status"] = status.value
+        if genre is not None:
+            var_defs.append("$genre: String")
+            media_args.append("genre: $genre")
+            variables["genre"] = genre
+
+        query = f"""
+        query ({', '.join(var_defs)}) {{
+            Page(page: $page, perPage: $perPage) {{
+                pageInfo {{ total perPage currentPage lastPage hasNextPage }}
+                media({', '.join(media_args)}) {{
                     id idMal
-                    title { romaji english native userPreferred }
+                    title {{ romaji english native userPreferred }}
                     format status episodes chapters volumes
                     averageScore meanScore popularity trending favourites
-                    coverImage { extraLarge large medium color }
+                    coverImage {{ extraLarge large medium color }}
                     season seasonYear
                     genres
-                    startDate { year month day }
-                    nextAiringEpisode { airingAt episode }
+                    startDate {{ year month day }}
+                    nextAiringEpisode {{ airingAt episode }}
                     isAdult
                     siteUrl
-                }
-            }
-        }
+                }}
+            }}
+        }}
         """
-        data = self._execute(query, {
-            "page": page,
-            "perPage": per_page,
-            "search": search,
-            "type": media_type,
-            "sort": [sort.value],
-            "format": [f.value for f in format_in] if format_in else None,
-            "status": status.value if status else None,
-            "genre": genre,
-            "isAdult": is_adult,
-        })
+        data = self._execute(query, variables)
         return MediaConnection(**data["Page"])
 
     def get_seasonal(
