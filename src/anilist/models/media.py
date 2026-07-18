@@ -11,13 +11,17 @@ from .base import FuzzyDate, MediaCoverImage, MediaTitle, MediaTrailer
 
 
 class AiringSchedule(BaseModel):
-    """The next airing schedule for a media entry."""
+    """The next airing schedule for a media entry.
 
-    id: int
-    airing_at: int = Field(alias="airingAt")
-    time_until_airing: int = Field(alias="timeUntilAiring")
-    episode: int
-    media_id: int = Field(alias="mediaId")
+    Fields are Optional because different GraphQL queries return
+    different subsets (e.g. get_trending only requests airingAt+episode).
+    """
+
+    id: Optional[int] = None
+    airing_at: Optional[int] = Field(default=None, alias="airingAt")
+    time_until_airing: Optional[int] = Field(default=None, alias="timeUntilAiring")
+    episode: Optional[int] = None
+    media_id: Optional[int] = Field(default=None, alias="mediaId")
 
 
 class MediaTag(BaseModel):

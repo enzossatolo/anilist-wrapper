@@ -189,11 +189,11 @@ class AniListClient:
         if format_in is not None:
             var_defs.append("$format: [MediaFormat]")
             media_args.append("format_in: $format")
-            variables["format"] = [f.value for f in format_in]
+            variables["format"] = [f.value if isinstance(f, MediaFormat) else f for f in format_in]
         if status is not None:
             var_defs.append("$status: MediaStatus")
             media_args.append("status: $status")
-            variables["status"] = status.value
+            variables["status"] = status.value if isinstance(status, MediaStatus) else status
         if genre is not None:
             var_defs.append("$genre: String")
             media_args.append("genre: $genre")

@@ -114,11 +114,11 @@ class AsyncAniListClient:
         if format_in is not None:
             var_defs.append("$f: [MediaFormat]")
             media_args.append("format_in: $f")
-            vars_["f"] = [f.value for f in format_in]
+            vars_["f"] = [f.value if isinstance(f, MediaFormat) else f for f in format_in]
         if status is not None:
             var_defs.append("$st: MediaStatus")
             media_args.append("status: $st")
-            vars_["st"] = status.value
+            vars_["st"] = status.value if isinstance(status, MediaStatus) else status
         if genre is not None:
             var_defs.append("$g: String")
             media_args.append("genre: $g")
