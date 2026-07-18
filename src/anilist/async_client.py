@@ -129,7 +129,7 @@ class AsyncAniListClient:
 
     async def get_seasonal(self, year: int, season: MediaSeason, *, media_type: MediaType = "ANIME", page: int = 1, per_page: int = 20, sort: MediaSort = MediaSort.POPULARITY_DESC) -> MediaConnection:
         q = """query($p:Int,$pp:Int,$s:MediaSeason,$y:Int,$t:MediaType,$so:[MediaSort]){Page(page:$p,perPage:$pp){pageInfo{total perPage currentPage lastPage hasNextPage}media(season:$s,seasonYear:$y,type:$t,sort:$so){id idMal title{romaji english native userPreferred}format status episodes chapters volumes averageScore meanScore popularity trending coverImage{extraLarge large medium color}genres nextAiringEpisode{airingAt episode}isAdult siteUrl}}}"""
-        d = await self._execute(q, {"p": page, "pp": per_page, "s": season.value, "y": year, "t": media_type, "so": [sort.value]})
+        d = await self._execute(q, {"p": page, "pp": per_page, "s": season.value if isinstance(season, MediaSeason) else season, "y": year, "t": media_type, "so": [sort.value if isinstance(sort, MediaSort) else sort]})
         return MediaConnection(**d["Page"])
 
     async def get_trending(self, *, media_type: MediaType = "ANIME", page: int = 1, per_page: int = 20) -> MediaConnection:
@@ -274,29 +274,51 @@ class AsyncAniListClient:
         if not name and not user_id:
             raise ValueError("Either 'name' or 'user_id' must be provided")
 
-        query = """
-        query ($id: Int, $name: String) {
-            User(id: $id, name: $name) {
-                id name about avatar { large medium }
-                bannerImage
-                isFollowing isFollower isBlocked
-                donatorTier donatorBadge
-                moderatorRoles
-                options { titleLanguage displayAdultContent profileColor }
-                mediaListOptions { scoreFormat rowOrder }
-                favourites { anime { nodes { id title { romaji english } } } }
-                statistics {
-                    anime { count meanScore standardDeviation episodesWatched minutesWatched }
-                    manga { count meanScore standardDeviation chaptersRead volumesRead }
+        if user_id is not None:
+            query = """
+            query ($id: Int) {
+                User(id: $id) {
+                    id name about avatar { large medium }
+                    bannerImage
+                    isFollowing isFollower isBlocked
+                    donatorTier donatorBadge
+                    moderatorRoles
+                    options { titleLanguage displayAdultContent profileColor }
+                    mediaListOptions { scoreFormat rowOrder }
+                    favourites { anime { nodes { id title { romaji english } } } }
+                    statistics {
+                        anime { count meanScore standardDeviation episodesWatched minutesWatched }
+                        manga { count meanScore standardDeviation chaptersRead volumesRead }
+                    }
+                    unreadNotificationCount
+                    siteUrl
+                    createdAt updatedAt
                 }
-                unreadNotificationCount
-                siteUrl
-                createdAt updatedAt
             }
-        }
-        """
-        data = await self._execute(query, {"id": user_id, "name": name})
+            """
+            data = await self._execute(query, {"id": user_id})
+        else:
+            query = """
+            query ($name: String) {
+                User(name: $name) {
+                    id name about avatar { large medium }
+                    bannerImage
+                    isFollowing isFollower isBlocked
+                    donatorTier donatorBadge
+                    moderatorRoles
+                    options { titleLanguage displayAdultContent profileColor }
+                    mediaListOptions { scoreFormat rowOrder }
+                    favourites { anime { nodes { id title { romaji english } } } }
+                    statistics {
+                        anime { count meanScore standardDeviation episodesWatched minutesWatched }
+                        manga { count meanScore standardDeviation chaptersRead volumesRead }
+                    }
+                    unreadNotificationCount
+                    siteUrl
+                    createdAt updatedAt
+                }
+            }
+            """
+            data = await self._execute(query, {"name": name})
         user_data = data.get("User")
-        if user_data is None:
-            return None
-        return User(**user_data)
+        return User(**user_data) if user_data else None

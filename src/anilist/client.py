@@ -255,10 +255,10 @@ class AniListClient:
         data = self._execute(query, {
             "page": page,
             "perPage": per_page,
-            "season": season.value,
+            "season": season.value if isinstance(season, MediaSeason) else season,
             "year": year,
             "type": media_type,
-            "sort": [sort.value],
+            "sort": [sort.value if isinstance(sort, MediaSort) else sort],
         })
         return MediaConnection(**data["Page"])
 
