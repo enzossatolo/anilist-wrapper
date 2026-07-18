@@ -150,9 +150,14 @@ class AsyncAniListClient:
         return CharacterConnection(**d["Page"])
 
     async def get_media_characters(self, media_id: int, *, page: int = 1, per_page: int = 10, role: Optional[str] = None) -> CharacterConnection:
-        q = """query($id:Int,$p:Int,$pp:Int,$r:CharacterRole){Media(id:$id){id characters(page:$p,perPage:$pp,sort:ROLE,role:$r){pageInfo{total perPage currentPage lastPage hasNextPage}nodes{id name{full native userPreferred}image{large medium}gender favourites siteUrl}}}}"""
-        d = await self._execute(q, {"id": media_id, "p": page, "pp": per_page, "r": role})
-        return CharacterConnection(**d.get("Media", {}).get("characters", {}))
+        # Omit role when None — AniList returns empty nodes instead of all
+        if role is not None:
+            q = """query($id:Int,$p:Int,$pp:Int,$r:CharacterRole){Media(id:$id){id characters(page:$p,perPage:$pp,sort:ROLE,role:$r){pageInfo{total perPage currentPage lastPage hasNextPage}nodes{id name{full native userPreferred}image{large medium}gender favourites siteUrl}}}}"""
+            d = await self._execute(q, {"id": media_id, "p": page, "pp": per_page, "r": role})
+        else:
+            q = """query($id:Int,$p:Int,$pp:Int){Media(id:$id){id characters(page:$p,perPage:$pp,sort:ROLE){pageInfo{total perPage currentPage lastPage hasNextPage}nodes{id name{full native userPreferred}image{large medium}gender favourites siteUrl}}}}"""
+            d = await self._execute(q, {"id": media_id, "p": page, "pp": per_page})
+        return CharacterConnection(**d["Media"]["characters"])
 
     # ── Staff ──
 

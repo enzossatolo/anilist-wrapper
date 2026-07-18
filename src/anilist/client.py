@@ -452,30 +452,48 @@ class AniListClient:
         role: Optional[str] = None,  # "MAIN", "SUPPORTING", "BACKGROUND"
     ) -> CharacterConnection:
         """Get characters for a specific media entry."""
-        query = """
-        query ($id: Int, $page: Int, $perPage: Int, $role: CharacterRole) {
-            Media(id: $id) {
-                id
-                characters(page: $page, perPage: $perPage, sort: ROLE, role: $role) {
-                    pageInfo { total perPage currentPage lastPage hasNextPage }
-                    nodes {
-                        id
-                        name { full native userPreferred }
-                        image { large medium }
-                        gender
-                        favourites
-                        siteUrl
+        # Build query dynamically — AniList returns empty when role is null
+        if role is not None:
+            query = """
+            query ($id: Int, $page: Int, $perPage: Int, $role: CharacterRole) {
+                Media(id: $id) {
+                    id
+                    characters(page: $page, perPage: $perPage, sort: ROLE, role: $role) {
+                        pageInfo { total perPage currentPage lastPage hasNextPage }
+                        nodes {
+                            id
+                            name { full native userPreferred }
+                            image { large medium }
+                            gender
+                            favourites
+                            siteUrl
+                        }
                     }
                 }
             }
-        }
-        """
-        data = self._execute(query, {
-            "id": media_id,
-            "page": page,
-            "perPage": per_page,
-            "role": role,
-        })
+            """
+            variables = {"id": media_id, "page": page, "perPage": per_page, "role": role}
+        else:
+            query = """
+            query ($id: Int, $page: Int, $perPage: Int) {
+                Media(id: $id) {
+                    id
+                    characters(page: $page, perPage: $perPage, sort: ROLE) {
+                        pageInfo { total perPage currentPage lastPage hasNextPage }
+                        nodes {
+                            id
+                            name { full native userPreferred }
+                            image { large medium }
+                            gender
+                            favourites
+                            siteUrl
+                        }
+                    }
+                }
+            }
+            """
+            variables = {"id": media_id, "page": page, "perPage": per_page}
+        data = self._execute(query, variables)
         return CharacterConnection(**data.get("Media", {}).get("characters", {}))
 
     # ── Staff ─────────────────────────────────────────────────

@@ -34,7 +34,9 @@ class CharacterConnection(BaseModel):
     """A paginated list of characters."""
 
     page_info: Optional[PageInfo] = Field(default=None, alias="pageInfo")
-    nodes: list[Character] = Field(default_factory=list)
+    nodes: list[Character] = Field(default_factory=list, alias="characters")
+
+    model_config = {"populate_by_name": True}
 
 
 class Character(BaseModel):
@@ -79,7 +81,9 @@ class StaffConnection(BaseModel):
     """A paginated list of staff."""
 
     page_info: Optional[PageInfo] = Field(default=None, alias="pageInfo")
-    nodes: list[Staff] = Field(default_factory=list)
+    nodes: list[Staff] = Field(default_factory=list, alias="staff")
+
+    model_config = {"populate_by_name": True}
 
 
 class Staff(BaseModel):
@@ -113,7 +117,9 @@ class StudioConnection(BaseModel):
     """A paginated list of studios."""
 
     page_info: Optional[PageInfo] = Field(default=None, alias="pageInfo")
-    nodes: list[Studio] = Field(default_factory=list)
+    nodes: list[Studio] = Field(default_factory=list, alias="studios")
+
+    model_config = {"populate_by_name": True}
 
 
 class Studio(BaseModel):

@@ -102,7 +102,9 @@ class MediaConnection(BaseModel):
     """A paginated list of media entries."""
 
     page_info: Optional[PageInfo] = Field(default=None, alias="pageInfo")
-    nodes: list[Media] = Field(default_factory=list)
+    nodes: list[Media] = Field(default_factory=list, alias="media")
+
+    model_config = {"populate_by_name": True}
 
 
 class Media(BaseModel):
